@@ -126,17 +126,38 @@ You are an expert physiotherapist AI. Based on the user profile provided, recomm
 
 IMPORTANT: Keep instructions simple, clear, and not complex. Use 3-5 short steps maximum.
 
-CRITICAL - ANGLE CALCULATION GUIDELINES:
-- For ARM LIFTING exercises (shoulder abduction/flexion): Use [hip, shoulder, elbow] like [23, 11, 13]
-- For ARM SWINGING exercises (pendulum): Use [shoulder, elbow, wrist] like [11, 13, 15] 
-- For LEG exercises: Use [hip, knee, ankle] like [23, 25, 27]
-- For SPINE exercises: Use [shoulder, hip, knee] like [11, 23, 25]
+CRITICAL - ANGLE CALCULATION SYSTEM:
+Our pose analysis system calculates angles using 3 points: Point1 → Vertex → Point2
+The angle is measured at the VERTEX (middle point) between the two lines formed.
+
+HOW ANGLES ARE CALCULATED:
+- We use the formula: angle = arctan2(Point2.y - Vertex.y, Point2.x - Vertex.x) - arctan2(Point1.y - Vertex.y, Point1.x - Vertex.x)
+- Result is converted to degrees (0-180°)
+- For arm exercises, we automatically detect which arm is being used (left/right)
+
+EXERCISE TYPE → ANGLE POINTS MAPPING:
+1. ARM LIFTING (shoulder abduction/flexion): 
+   - Points: [hip, shoulder, elbow] → [23, 11, 13] (left) or [24, 12, 14] (right)
+   - Measures: Hip-to-shoulder-to-elbow angle
+   - 0° = arm down, 90° = arm horizontal, 180° = arm up
+
+2. ARM SWINGING (pendulum exercises):
+   - Points: [shoulder, elbow, wrist] → [11, 13, 15] (left) or [12, 14, 16] (right)
+   - Measures: Shoulder-to-elbow-to-wrist angle
+   - 180° = straight arm, 90° = bent arm
+
+3. LEG EXERCISES:
+   - Points: [hip, knee, ankle] → [23, 25, 27] (left) or [24, 26, 28] (right)
+   - Measures: Hip-to-knee-to-ankle angle
 
 ANGLE RANGES LOGIC:
-- Starting position = resting/neutral position angle
-- Target range = active movement range
-- Optimal peak = best performance range
-- Rep thresholds: liftingMin < loweringMax < restMax (in ascending order)
+- startingPosition: The angle range when at rest/neutral position
+- targetRange: The full range of motion during exercise
+- optimalPeak: The ideal angle range for best exercise execution
+- repThresholds: Motion phase detection thresholds
+  * liftingMin: Minimum angle to detect lifting phase
+  * loweringMax: Maximum angle to detect lowering phase  
+  * restMax: Maximum angle considered at rest
 
 User Profile:
 - Height: ${userProfile.height}cm
@@ -186,9 +207,29 @@ Please provide a response in the following EXACT JSON format (respond ONLY with 
 }
 
 EXAMPLES OF CORRECT ANGLE CALCULATIONS:
-- Shoulder Abduction (arm to side): points=[23, 11, 13], ranges: start=[0,45], target=[90,180], thresholds: lifting=90, lowering=60, rest=30
-- Pendulum Swing: points=[11, 13, 15], ranges: start=[160,180], target=[90,160], thresholds: lifting=140, lowering=160, rest=175
-- Arm Forward Raise: points=[23, 11, 13], ranges: start=[0,30], target=[90,180], thresholds: lifting=90, lowering=60, rest=30
+
+1. SHOULDER ABDUCTION (lifting arm to the side):
+   - points=[23, 11, 13] (Hip → Left Shoulder → Left Elbow)
+   - startingPosition=[0,45] (arm down/resting)
+   - targetRange=[90,180] (arm horizontal to up)
+   - optimalPeak=[160,180] (nearly straight up)
+   - repThresholds: liftingMin=90, loweringMax=60, restMax=30
+
+2. PENDULUM SWING (gentle arm swing):
+   - points=[11, 13, 15] (Shoulder → Elbow → Wrist)  
+   - startingPosition=[160,180] (straight hanging arm)
+   - targetRange=[90,160] (swinging range)
+   - optimalPeak=[90,120] (max swing angle)
+   - repThresholds: liftingMin=140, loweringMax=160, restMax=175
+
+3. FORWARD ARM RAISE (shoulder flexion):
+   - points=[23, 11, 13] (Hip → Shoulder → Elbow)
+   - startingPosition=[0,30] (arm at side)
+   - targetRange=[90,180] (horizontal to up)
+   - optimalPeak=[160,180] (nearly overhead)
+   - repThresholds: liftingMin=90, loweringMax=60, rest=30
+
+DETECTION SYSTEM: Our system automatically detects which arm (left/right) is being used based on movement and adjusts the landmark indices accordingly.
 
 MediaPipe Pose Landmark Reference:
 0-10: Face landmarks
