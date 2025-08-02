@@ -233,7 +233,16 @@ export default function PhysiotherapyCoach() {
 
       if (results.poseLandmarks) {
         drawPose(ctx, results.poseLandmarks);
-        analyzeArmExercise(results.poseLandmarks);
+        
+        // Determine if this is an arm or leg exercise and call appropriate analysis
+        const exercise = currentExercise || defaultExercise;
+        const bodyPart = getExerciseBodyPart(exercise);
+        
+        if (bodyPart === 'legs') {
+          analyzeLegExercise(results.poseLandmarks);
+        } else {
+          analyzeArmExercise(results.poseLandmarks);
+        }
       }
     };
 
@@ -334,6 +343,87 @@ export default function PhysiotherapyCoach() {
       });
     };
 
+    const analyzeLegExercise = (landmarks: any[]) => {
+      const exercise = currentExercise || defaultExercise;
+      
+      // Auto-detect which leg is more active
+      const detectedLegLocal = detectActiveLeg(landmarks);
+      
+      // Get landmarks based on exercise configuration and detected leg
+      const primaryAngle = exercise.angleCalculations.primaryAngle;
+      let adjustedPoints = [...primaryAngle.points];
+      
+      // Adjust keypoints for right leg if detected
+      if (detectedLegLocal === 'right') {
+        adjustedPoints = adjustedPoints.map(point => {
+          if (point === 23) return 24; // Left hip -> Right hip
+          if (point === 25) return 26; // Left knee -> Right knee  
+          if (point === 27) return 28; // Left ankle -> Right ankle
+          if (point === 11) return 12; // Left shoulder -> Right shoulder (for hip-shoulder-knee angles)
+          return point;
+        });
+      }
+      
+      const point1 = landmarks[adjustedPoints[0]];
+      const vertex = landmarks[adjustedPoints[1]];
+      const point2 = landmarks[adjustedPoints[2]];
+
+      if (point1 && vertex && point2) {
+        // Update detected leg state if it changed
+        if (detectedLegLocal !== detectedArm) {
+          setDetectedArm(detectedLegLocal); // Using same state variable for simplicity
+          console.log(`Leg detection updated: now tracking ${detectedLegLocal} leg`);
+        }
+
+        // Calculate primary angle
+        const angle = calculateAngle(point1, vertex, point2);
+        setArmAngle(Math.round(angle)); // Using same state variable for display
+
+        analyzeExerciseForm(angle, landmarks, exercise, detectedLegLocal);
+      }
+    };
+
+    // Function to detect which leg is more active
+    const detectActiveLeg = (landmarks: any[]): 'left' | 'right' => {
+      const leftHip = landmarks[23];
+      const leftKnee = landmarks[25];
+      const leftAnkle = landmarks[27];
+      const rightHip = landmarks[24];
+      const rightKnee = landmarks[26];
+      const rightAnkle = landmarks[28];
+      
+      if (!leftHip || !leftKnee || !leftAnkle || !rightHip || !rightKnee || !rightAnkle) {
+        return detectedArm as 'left' | 'right'; // Keep current if can't detect all points
+      }
+      
+      // Calculate leg angles for both legs
+      const leftHipAngle = calculateAngle(landmarks[11], leftHip, leftKnee); // Shoulder-Hip-Knee
+      const rightHipAngle = calculateAngle(landmarks[12], rightHip, rightKnee); // Shoulder-Hip-Knee
+      
+      // Calculate how elevated each leg is (higher ankle = more active)
+      const leftElevation = leftHip.y - leftAnkle.y; // Higher ankle = more negative
+      const rightElevation = rightHip.y - rightAnkle.y;
+      
+      // Calculate leg extension (more extended leg when exercising)
+      const leftExtension = Math.abs(leftKnee.x - leftHip.x) + Math.abs(leftAnkle.x - leftKnee.x);
+      const rightExtension = Math.abs(rightKnee.x - rightHip.x) + Math.abs(rightAnkle.x - rightKnee.x);
+      
+      // Combined score: elevation + extension + angle deviation from rest position
+      const leftScore = leftElevation * 2 + leftExtension + Math.abs(leftHipAngle - 180);
+      const rightScore = rightElevation * 2 + rightExtension + Math.abs(rightHipAngle - 180);
+      
+      // Only switch if there's a significant difference (30% threshold)
+      const threshold = 0.3;
+      if (rightScore > leftScore * (1 + threshold)) {
+        return 'right';
+      } else if (leftScore > rightScore * (1 + threshold)) {
+        return 'left';
+      }
+      
+      // Not enough difference, keep current
+      return detectedArm as 'left' | 'right';
+    };
+  
     const analyzeArmExercise = (landmarks: any[]) => {
       const exercise = currentExercise || defaultExercise;
       
@@ -434,20 +524,53 @@ export default function PhysiotherapyCoach() {
       // Determine if this is a "lifting" exercise (shoulder abduction) or "curling" exercise (bicep curl)
       const isLiftingExercise = exercise.exerciseName.toLowerCase().includes('abduction') || 
                                exercise.exerciseName.toLowerCase().includes('flexion') ||
-                               exercise.exerciseName.toLowerCase().includes('raise');
+                               exercise.exerciseName.toLowerCase().includes('raise') ||
+                               exercise.exerciseName.toLowerCase().includes('extension');
       
       const isCurlingExercise = exercise.exerciseName.toLowerCase().includes('curl') ||
                                 exercise.exerciseName.toLowerCase().includes('bicep');
       
+      const isLegExercise = exercise.exerciseName.toLowerCase().includes('squat') ||
+                           exercise.exerciseName.toLowerCase().includes('lunge') ||
+                           exercise.exerciseName.toLowerCase().includes('hip') ||
+                           exercise.exerciseName.toLowerCase().includes('leg');
+      
       // Dynamic action verbs based on exercise type
-      const actionVerb = isCurlingExercise ? 'curl' : 'lift';
-      const actionVerbGerund = isCurlingExercise ? 'curling' : 'lifting';
-      const bodyPart = isCurlingExercise ? 'forearm' : 'arm';
+      let actionVerb, actionVerbGerund, bodyPart;
+      
+      if (isLegExercise) {
+        actionVerb = exercise.exerciseName.toLowerCase().includes('squat') ? 'squat' : 
+                    exercise.exerciseName.toLowerCase().includes('lunge') ? 'lunge' : 'lift';
+        actionVerbGerund = exercise.exerciseName.toLowerCase().includes('squat') ? 'squatting' : 
+                          exercise.exerciseName.toLowerCase().includes('lunge') ? 'lunging' : 'lifting';
+        bodyPart = 'leg';
+      } else if (isCurlingExercise) {
+        actionVerb = 'curl';
+        actionVerbGerund = 'curling';
+        bodyPart = 'forearm';
+      } else {
+        actionVerb = 'lift';
+        actionVerbGerund = 'lifting';
+        bodyPart = 'arm';
+      }
       
       // Rep counting logic - check if optimal peak is reached
       const currentTime = Date.now();
-      const isInOptimalPeak = (isLiftingExercise && angle >= optimalPeak[0] && angle <= optimalPeak[1]) ||
-                             (isCurlingExercise && angle >= optimalPeak[0] && angle <= optimalPeak[1]);
+      let isInOptimalPeak = false;
+      
+      if (isLegExercise) {
+        // For leg exercises like squats, optimal peak is usually the lowest point (highest angle for knee flexion)
+        if (exercise.exerciseName.toLowerCase().includes('squat')) {
+          isInOptimalPeak = angle >= optimalPeak[0] && angle <= optimalPeak[1];
+        } else {
+          // For other leg exercises, use standard logic
+          isInOptimalPeak = angle >= optimalPeak[0] && angle <= optimalPeak[1];
+        }
+      } else {
+        // For arm exercises
+        isInOptimalPeak = (isLiftingExercise && angle >= optimalPeak[0] && angle <= optimalPeak[1]) ||
+                         (isCurlingExercise && angle >= optimalPeak[0] && angle <= optimalPeak[1]);
+      }
       
       // Count rep when reaching optimal peak for the first time in this movement cycle
       if (isInOptimalPeak && !hasReachedPeakRef.current && currentTime - lastRepTimeRef.current > 1000) {
@@ -459,8 +582,16 @@ export default function PhysiotherapyCoach() {
       }
       
       // Reset peak flag when returning to starting position
-      const isInStartingPosition = (isLiftingExercise && angle <= startingPosition[1]) ||
-                                  (isCurlingExercise && angle >= startingPosition[0]);
+      let isInStartingPosition = false;
+      
+      if (isLegExercise) {
+        // For leg exercises, starting position is usually standing (lower angle for knee flexion)
+        isInStartingPosition = angle <= startingPosition[1] || angle >= startingPosition[0];
+      } else {
+        // For arm exercises
+        isInStartingPosition = (isLiftingExercise && angle <= startingPosition[1]) ||
+                              (isCurlingExercise && angle >= startingPosition[0]);
+      }
       
       if (isInStartingPosition && hasReachedPeakRef.current) {
         hasReachedPeakRef.current = false;
@@ -471,6 +602,21 @@ export default function PhysiotherapyCoach() {
         feedbackText = `✅ Excellent! Rep ${repCounterRef.current} completed - Full range achieved`;
         formCorrect = true;
         currentState = actionVerbGerund;
+      } else if (isLegExercise) {
+        // Leg exercise specific feedback
+        if (exercise.exerciseName.toLowerCase().includes('squat') && angle < optimalPeak[0]) {
+          feedbackText = `📈 Go deeper! Squat down more to reach full range`;
+          formCorrect = true;
+          currentState = actionVerbGerund;
+        } else if (angle > liftingMin) {
+          feedbackText = `📈 Keep going! ${actionVerbGerund === 'squatting' ? 'Go deeper' : 'Continue movement'}`;
+          formCorrect = true;
+          currentState = actionVerbGerund;
+        } else {
+          feedbackText = `🏁 Ready position. Begin ${exercise.exerciseName.toLowerCase()}`;
+          formCorrect = true;
+          currentState = 'ready';
+        }
       } else if ((isLiftingExercise && angle > liftingMin) || (isCurlingExercise && angle < liftingMin)) {
         feedbackText = `📈 Keep going! ${isLiftingExercise ? 'Raise' : 'Curl'} your ${bodyPart} ${isLiftingExercise ? 'higher' : 'more'}`;
         formCorrect = true;
@@ -485,21 +631,24 @@ export default function PhysiotherapyCoach() {
         currentState = 'ready';
       }
 
-      // Check for form errors using dynamic form checks with arm-specific landmarks
+      // Check for form errors using dynamic form checks with limb-specific landmarks
       exercise.formChecks.forEach(check => {
         const adjustedKeypoints = check.keypoints.map(idx => {
           if (detectedArm === 'right') {
+            // Adjust for right arm/leg
             if (idx === 11) return 12; // Left shoulder -> Right shoulder
             if (idx === 13) return 14; // Left elbow -> Right elbow
             if (idx === 15) return 16; // Left wrist -> Right wrist
             if (idx === 23) return 24; // Left hip -> Right hip
+            if (idx === 25) return 26; // Left knee -> Right knee
+            if (idx === 27) return 28; // Left ankle -> Right ankle
           }
           return idx;
         });
         
         const keypoints = adjustedKeypoints.map(idx => landmarks[idx]).filter(Boolean);
         if (keypoints.length >= 2) {
-          // Simple form check based on keypoint positions
+          // Form checks for arm exercises
           if (check.condition.includes('wrist higher than shoulder') && currentState === actionVerbGerund) {
             const shoulder = landmarks[detectedArm === 'left' ? 11 : 12];
             const wrist = landmarks[detectedArm === 'left' ? 15 : 16];
@@ -513,6 +662,32 @@ export default function PhysiotherapyCoach() {
             if (shoulder && elbow && elbow.y > shoulder.y + 0.05) {
               feedbackText = `⚠️ ${check.errorMessage}`;
               formCorrect = false;
+            }
+          }
+          // Form checks for leg exercises
+          else if (check.condition.includes('knee alignment') && currentState === actionVerbGerund) {
+            const hip = landmarks[detectedArm === 'left' ? 23 : 24];
+            const knee = landmarks[detectedArm === 'left' ? 25 : 26];
+            const ankle = landmarks[detectedArm === 'left' ? 27 : 28];
+            if (hip && knee && ankle) {
+              // Check if knee is tracking over the ankle properly
+              const kneeAnkleDistance = Math.abs(knee.x - ankle.x);
+              if (kneeAnkleDistance > 0.1) {
+                feedbackText = `⚠️ ${check.errorMessage}`;
+                formCorrect = false;
+              }
+            }
+          }
+          else if (check.condition.includes('back straight') && currentState === actionVerbGerund) {
+            const shoulder = landmarks[detectedArm === 'left' ? 11 : 12];
+            const hip = landmarks[detectedArm === 'left' ? 23 : 24];
+            if (shoulder && hip) {
+              // Check torso alignment
+              const torsoAngle = Math.abs(shoulder.x - hip.x);
+              if (torsoAngle > 0.15) {
+                feedbackText = `⚠️ ${check.errorMessage}`;
+                formCorrect = false;
+              }
             }
           }
           // Add bicep curl specific form check
@@ -637,7 +812,12 @@ export default function PhysiotherapyCoach() {
                 
                 {/* Overlay with angle indicator */}
                 <div className="absolute top-4 left-4 bg-black bg-opacity-70 text-white px-3 py-1 rounded">
-                  {currentExercise ? currentExercise.angleCalculations.primaryAngle.name : 'Arm Angle'}: {armAngle}°
+                  {(() => {
+                    const exercise = currentExercise || defaultExercise;
+                    const bodyPart = getExerciseBodyPart(exercise);
+                    const angleName = exercise.angleCalculations.primaryAngle.name;
+                    return `${angleName}: ${armAngle}°`;
+                  })()}
                 </div>
                 
                 {/* Rep counter overlay */}
@@ -691,9 +871,13 @@ export default function PhysiotherapyCoach() {
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Active Arm:</span>
+                  <span className="text-gray-600">Active Limb:</span>
                   <span className="text-sm font-medium text-gray-800 capitalize">
-                    {detectedArm}
+                    {(() => {
+                      const exercise = currentExercise || defaultExercise;
+                      const bodyPart = getExerciseBodyPart(exercise);
+                      return `${detectedArm} ${bodyPart === 'legs' ? 'leg' : 'arm'}`;
+                    })()}
                   </span>
                 </div>
               </div>
