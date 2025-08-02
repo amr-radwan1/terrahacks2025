@@ -62,11 +62,34 @@ export default function PhysiotherapyCoach() {
   const [isExerciseActive, setIsExerciseActive] = useState(false);
   const [detectedArm, setDetectedArm] = useState<'left' | 'right'>('left');
   const [exerciseStarted, setExerciseStarted] = useState(false);
+  const [cameraPermission, setCameraPermission] = useState<'granted' | 'denied' | 'prompt' | 'unknown'>('unknown');
+
+  // Check camera permission on load
+  useEffect(() => {
+    const checkCameraPermission = async () => {
+      try {
+        const permission = await navigator.permissions.query({ name: 'camera' as PermissionName });
+        setCameraPermission(permission.state);
+        
+        permission.onchange = () => {
+          setCameraPermission(permission.state);
+        };
+      } catch (error) {
+        console.log('Permission API not supported, will check on camera access');
+      }
+    };
+    
+    checkCameraPermission();
+  }, []);
 
   // Set MediaPipe as loaded when both scripts are loaded
   useEffect(() => {
     if (scriptsLoaded.camera && scriptsLoaded.pose && window.Camera && window.Pose) {
       setIsMediaPipeLoaded(true);
+      setFeedback('MediaPipe loaded successfully. Initializing camera...');
+    } else {
+      console.log('Scripts loaded status:', scriptsLoaded);
+      console.log('Window objects:', { Camera: !!window.Camera, Pose: !!window.Pose });
     }
   }, [scriptsLoaded]);
 
@@ -75,8 +98,8 @@ export default function PhysiotherapyCoach() {
     // console.log('New exercise generated:', exerciseData);
     setCurrentExercise(exerciseData);
     setIsExerciseActive(true);
-    // setRepCount(0); // Reset rep count for new exercise
-    // repCounterRef.current = 0;
+    setRepCount(0); // Reset rep count for new exercise
+    repCounterRef.current = 0;
     lastStateRef.current = 'ready';
     setExerciseStarted(false);
     setFeedback(`Exercise loaded: ${exerciseData.exerciseName}. Click "Start Exercise" to begin.`);
@@ -142,15 +165,20 @@ export default function PhysiotherapyCoach() {
 
     const initializeMediaPipe = async () => {
       try {
+        console.log('Initializing MediaPipe...');
+        setFeedback('Initializing MediaPipe...');
+        
         // Access MediaPipe from global window object
         const { Pose } = window;
         const { Camera } = window;
 
         if (!Pose || !Camera) {
+          console.error('MediaPipe objects not found:', { Pose: !!Pose, Camera: !!Camera });
           setFeedback('MediaPipe not loaded properly. Please refresh the page.');
           return;
         }
 
+        console.log('Creating Pose instance...');
         // Initialize MediaPipe Pose
         pose = new Pose({
           locateFile: (file: string) => {
@@ -168,9 +196,13 @@ export default function PhysiotherapyCoach() {
         });
 
         pose.onResults(onResults);
+        console.log('Pose initialized successfully');
 
         // Initialize camera
         if (videoRef.current) {
+          console.log('Initializing camera...');
+          setFeedback('Requesting camera permissions...');
+          
           camera = new Camera(videoRef.current, {
             onFrame: async () => {
               if (videoRef.current) {
@@ -180,12 +212,25 @@ export default function PhysiotherapyCoach() {
             width: 640,
             height: 480
           });
+          
+          console.log('Starting camera...');
           await camera.start();
-          setFeedback('Position yourself in front of the camera');
+          console.log('Camera started successfully');
+          setFeedback('Camera active! Position yourself in front of the camera');
+        } else {
+          console.error('Video ref not available');
+          setFeedback('Video element not found. Please refresh the page.');
         }
       } catch (error) {
         console.error('Error initializing MediaPipe:', error);
-        setFeedback('Error starting camera. Please check permissions.');
+        const errorObj = error as Error;
+        if (errorObj.name === 'NotAllowedError') {
+          setFeedback('Camera permission denied. Please allow camera access and refresh the page.');
+        } else if (errorObj.name === 'NotFoundError') {
+          setFeedback('No camera found. Please connect a camera and refresh the page.');
+        } else {
+          setFeedback(`Camera error: ${errorObj.message}. Please refresh the page.`);
+        }
       }
     };
 
@@ -605,6 +650,18 @@ export default function PhysiotherapyCoach() {
         }
       });
 
+      // Rep counting logic
+      if (exerciseStarted) {
+        // Count a rep when transitioning from lifting/curling back to ready/rest
+        if ((lastStateRef.current === 'lifting' || lastStateRef.current === 'curling') && 
+            (currentState === 'ready' || currentState === 'rest')) {
+          const newRepCount = repCounterRef.current + 1;
+          repCounterRef.current = newRepCount;
+          setRepCount(newRepCount);
+          feedbackText = `🎉 Rep ${newRepCount} completed! Keep going!`;
+        }
+      }
+
       // Update state only if it changed
       if (currentState !== lastStateRef.current) {
         setExerciseState(currentState);
@@ -662,6 +719,14 @@ export default function PhysiotherapyCoach() {
               {currentExercise ? currentExercise.exerciseName : 'Shoulder Abduction Exercise'} - Real-time Form Analysis
             </p>
             
+            {/* Rep Counter Banner */}
+            {exerciseStarted && (
+              <div className="mt-4 inline-block bg-gradient-to-r from-green-500 to-blue-500 text-white px-6 py-3 rounded-lg shadow-lg">
+                <div className="text-sm font-medium">TOTAL REPS</div>
+                <div className="text-4xl font-bold">{repCount}</div>
+              </div>
+            )}
+            
             {/* Control Buttons */}
             <div className="flex justify-center gap-4 mt-4">
               <button
@@ -674,8 +739,8 @@ export default function PhysiotherapyCoach() {
                 <button
                   onClick={() => {
                     setCurrentExercise(null);
-                    // setRepCount(0);
-                    // repCounterRef.current = 0;
+                    setRepCount(0);
+                    repCounterRef.current = 0;
                     lastStateRef.current = 'ready';
                     setExerciseStarted(false);
                     setFeedback('Position yourself in front of the camera');
@@ -688,9 +753,11 @@ export default function PhysiotherapyCoach() {
               <button
                 onClick={() => {
                   setExerciseStarted(!exerciseStarted);
-                  // setRepCount(0);
-                  // repCounterRef.current = 0;
-                  lastStateRef.current = 'ready';
+                  if (!exerciseStarted) {
+                    setRepCount(0);
+                    repCounterRef.current = 0;
+                    lastStateRef.current = 'ready';
+                  }
                   setFeedback(exerciseStarted ? 'Exercise stopped' : 'Exercise started! Begin your movements');
                 }}
                 className={`px-6 py-2 rounded-lg transition-colors ${
@@ -702,6 +769,30 @@ export default function PhysiotherapyCoach() {
                 {exerciseStarted ? 'Stop Exercise' : 'Start Exercise'}
               </button>
             </div>
+            
+            {/* Camera Permission Button */}
+            {!isMediaPipeLoaded && (
+              <div className="mt-4">
+                <button
+                  onClick={async () => {
+                    try {
+                      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                      stream.getTracks().forEach(track => track.stop());
+                      setCameraPermission('granted');
+                      setFeedback('Camera permission granted! Please refresh the page.');
+                    } catch (error) {
+                      console.error('Camera permission error:', error);
+                      const errorObj = error as Error;
+                      setCameraPermission('denied');
+                      setFeedback(`Camera permission denied: ${errorObj.message}. Please allow camera access in your browser settings.`);
+                    }
+                  }}
+                  className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+                >
+                  Grant Camera Permission
+                </button>
+              </div>
+            )}
           </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -713,6 +804,8 @@ export default function PhysiotherapyCoach() {
                   ref={videoRef}
                   className="hidden"
                   playsInline
+                  autoPlay
+                  muted
                 />
                 <canvas
                   ref={canvasRef}
@@ -724,6 +817,12 @@ export default function PhysiotherapyCoach() {
                 {/* Overlay with angle indicator */}
                 <div className="absolute top-4 left-4 bg-black bg-opacity-70 text-white px-3 py-1 rounded">
                   {currentExercise ? currentExercise.angleCalculations.primaryAngle.name : 'Arm Angle'}: {armAngle}°
+                </div>
+                
+                {/* Rep Counter Overlay */}
+                <div className="absolute top-4 right-4 bg-green-600 bg-opacity-90 text-white px-4 py-2 rounded-lg text-center">
+                  <div className="text-sm font-medium">REPS</div>
+                  <div className="text-3xl font-bold">{repCount}</div>
                 </div>
               </div>
             </div>
@@ -753,10 +852,24 @@ export default function PhysiotherapyCoach() {
                 Exercise Progress
               </h3>
               <div className="space-y-3">
-                {/* <div className="flex justify-between items-center">
+                <div className="flex justify-between items-center">
                   <span className="text-gray-600">Repetitions:</span>
-                  <span className="text-2xl font-bold text-blue-600">{repCount}</span>
-                </div> */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl font-bold text-blue-600">{repCount}</span>
+                    {repCount > 0 && (
+                      <button
+                        onClick={() => {
+                          setRepCount(0);
+                          repCounterRef.current = 0;
+                        }}
+                        className="px-2 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600 transition-colors"
+                        title="Reset rep counter"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600">Current Phase:</span>
                   <span className={`px-2 py-1 rounded text-sm font-medium ${
@@ -766,6 +879,46 @@ export default function PhysiotherapyCoach() {
                     'bg-blue-100 text-blue-800'
                   }`}>
                     {exerciseState.charAt(0).toUpperCase() + exerciseState.slice(1)}
+                  </span>
+                </div>
+                {exerciseStarted && (
+                  <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <p className="text-sm text-green-800 font-medium">
+                      💪 Keep going! Complete full range of motion for each rep.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Debug Panel */}
+            <div className="bg-white rounded-lg shadow-lg p-6">
+              <h3 className="text-lg font-semibold mb-3 text-gray-800">
+                System Status
+              </h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span>MediaPipe Loaded:</span>
+                  <span className={isMediaPipeLoaded ? 'text-green-600' : 'text-red-600'}>
+                    {isMediaPipeLoaded ? '✅ Yes' : '❌ No'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Camera Permission:</span>
+                  <span className={
+                    cameraPermission === 'granted' ? 'text-green-600' : 
+                    cameraPermission === 'denied' ? 'text-red-600' : 
+                    'text-yellow-600'
+                  }>
+                    {cameraPermission === 'granted' ? '✅ Granted' : 
+                     cameraPermission === 'denied' ? '❌ Denied' : 
+                     cameraPermission === 'prompt' ? '⏳ Prompt' : '❓ Unknown'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Exercise Active:</span>
+                  <span className={exerciseStarted ? 'text-green-600' : 'text-gray-600'}>
+                    {exerciseStarted ? '✅ Active' : '⏸️ Inactive'}
                   </span>
                 </div>
               </div>
