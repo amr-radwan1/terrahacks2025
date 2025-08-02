@@ -54,7 +54,7 @@ export default function UserProfileForm({ onExerciseGenerated, onClose }: UserPr
   const [profile, setProfile] = useState<UserProfile>({
     height: 170,
     weight: 70,
-    age: 30,
+    age: 20,
     gender: 'male',
     painLocation: '',
     painLevel: 5,
@@ -124,7 +124,7 @@ export default function UserProfileForm({ onExerciseGenerated, onClose }: UserPr
                   type="number"
                   value={profile.height}
                   onChange={(e) => handleInputChange('height', parseInt(e.target.value) || 0)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border text-black border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   required
                 />
               </div>
@@ -136,7 +136,7 @@ export default function UserProfileForm({ onExerciseGenerated, onClose }: UserPr
                   type="number"
                   value={profile.weight}
                   onChange={(e) => handleInputChange('weight', parseInt(e.target.value) || 0)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border text-black border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   required
                 />
               </div>
@@ -148,7 +148,7 @@ export default function UserProfileForm({ onExerciseGenerated, onClose }: UserPr
                   type="number"
                   value={profile.age}
                   onChange={(e) => handleInputChange('age', parseInt(e.target.value) || 0)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border text-black border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   required
                 />
               </div>
@@ -162,7 +162,7 @@ export default function UserProfileForm({ onExerciseGenerated, onClose }: UserPr
               <select
                 value={profile.gender}
                 onChange={(e) => handleInputChange('gender', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border text-black border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="male">Male</option>
                 <option value="female">Female</option>
@@ -180,7 +180,7 @@ export default function UserProfileForm({ onExerciseGenerated, onClose }: UserPr
                 value={profile.painLocation}
                 onChange={(e) => handleInputChange('painLocation', e.target.value)}
                 placeholder="e.g., shoulder, lower back, knee, neck"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 text-black border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
             </div>
@@ -213,7 +213,7 @@ export default function UserProfileForm({ onExerciseGenerated, onClose }: UserPr
               <select
                 value={profile.fitnessLevel}
                 onChange={(e) => handleInputChange('fitnessLevel', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border text-black border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="beginner">Beginner</option>
                 <option value="intermediate">Intermediate</option>
@@ -230,7 +230,7 @@ export default function UserProfileForm({ onExerciseGenerated, onClose }: UserPr
                 value={profile.medicalHistory}
                 onChange={(e) => handleInputChange('medicalHistory', e.target.value)}
                 placeholder="Any relevant medical conditions, surgeries, or injuries"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 h-20 resize-none"
+                className="w-full px-3 py-2 text-black border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 h-20 resize-none"
               />
             </div>
 
@@ -243,7 +243,7 @@ export default function UserProfileForm({ onExerciseGenerated, onClose }: UserPr
                 value={profile.currentLimitations}
                 onChange={(e) => handleInputChange('currentLimitations', e.target.value)}
                 placeholder="Any movements you cannot perform or restrictions"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 h-20 resize-none"
+                className="w-full px-3 py-2 text-black border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 h-20 resize-none"
               />
             </div>
 

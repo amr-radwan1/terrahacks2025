@@ -48,6 +48,9 @@ export default function PhysiotherapyCoach() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const repCounterRef = useRef(0);
   const lastStateRef = useRef('ready');
+  const hasReachedPeakRef = useRef(false); // Track if peak was reached in current rep
+  const lastRepTimeRef = useRef(0); // Prevent double counting
+  
   const [feedback, setFeedback] = useState('Loading MediaPipe...');
   const [exerciseState, setExerciseState] = useState('ready'); // ready, lifting, lowering, rest
   const [repCount, setRepCount] = useState(0);
@@ -72,11 +75,11 @@ export default function PhysiotherapyCoach() {
 
   // Handler for exercise generation
   const handleExerciseGenerated = (exerciseData: ExerciseData) => {
-    // console.log('New exercise generated:', exerciseData);
     setCurrentExercise(exerciseData);
     setIsExerciseActive(true);
-    // setRepCount(0); // Reset rep count for new exercise
-    // repCounterRef.current = 0;
+    setRepCount(0); // Reset rep count for new exercise
+    repCounterRef.current = 0;
+    hasReachedPeakRef.current = false;
     lastStateRef.current = 'ready';
     setExerciseStarted(false);
     setFeedback(`Exercise loaded: ${exerciseData.exerciseName}. Click "Start Exercise" to begin.`);
@@ -122,6 +125,23 @@ export default function PhysiotherapyCoach() {
       liftingMin: 60,
       loweringMax: 75,
       restMax: 45
+    }
+  };
+
+  // Reset rep counter when starting exercise
+  const handleStartExercise = () => {
+    setExerciseStarted(!exerciseStarted);
+    if (!exerciseStarted) {
+      // Starting exercise - reset counters
+      setRepCount(0);
+      repCounterRef.current = 0;
+      hasReachedPeakRef.current = false;
+      lastRepTimeRef.current = 0;
+      lastStateRef.current = 'ready';
+      setFeedback('Exercise started! Begin your movements');
+    } else {
+      // Stopping exercise
+      setFeedback('Exercise stopped');
     }
   };
 
@@ -223,10 +243,6 @@ export default function PhysiotherapyCoach() {
       
       // Complete MediaPipe pose connections for full skeleton
       const connections = [
-        // Face connections
-        // [0, 1], [1, 2], [2, 3], [3, 7], [0, 4], [4, 5], [5, 6], [6, 8],
-        // [9, 10],
-        
         // Torso connections
         [11, 12], // shoulders
         [11, 23], // left shoulder to left hip
@@ -314,72 +330,12 @@ export default function PhysiotherapyCoach() {
             2 * Math.PI
           );
           ctx.fill();
-          
-          // Add landmark numbers for debugging (optional)
-          // if (index >= 11 && index <= 16) { // Only show numbers for key points
-          //   ctx.fillStyle = '#FFFFFF';
-          //   ctx.font = '12px Arial';
-          //   ctx.textAlign = 'center';
-          //   ctx.fillText(
-          //     index.toString(),
-          //     point.x * canvas.width,
-          //     point.y * canvas.height - 10
-          //   );
-          // }
         }
       });
     };
 
-    const analyzeLegExercise = (landmarks: any[]) => {
-      const exercise = currentExercise || defaultExercise;
-      
-      if (!exerciseStarted) {
-        setFeedback('Click "Start Exercise" to begin tracking your movements');
-        setIsCorrectForm(null);
-        return;
-      }
-      
-      // Auto-detect which leg is more active
-      const detectedLegLocal = detectActiveLeg(landmarks);
-      
-      // Get landmarks based on exercise configuration and detected leg
-      const primaryAngle = exercise.angleCalculations.primaryAngle;
-      let adjustedPoints = [...primaryAngle.points];
-      
-      // Adjust keypoints for right leg if detected
-      if (detectedLegLocal === 'right') {
-        adjustedPoints = adjustedPoints.map(point => {
-          if (point === 23) return 24; // Left hip -> Right hip
-          if (point === 25) return 26; // Left knee -> Right knee  
-          if (point === 27) return 28; // Left ankle -> Right ankle
-          if (point === 11) return 12; // Left shoulder -> Right shoulder (for hip-shoulder-knee angles)
-          return point;
-        });
-      }
-      
-      const point1 = landmarks[adjustedPoints[0]];
-      const vertex = landmarks[adjustedPoints[1]];
-      const point2 = landmarks[adjustedPoints[2]];
-
-      if (point1 && vertex && point2) {
-        // Update detected leg state if it changed
-        if (detectedLegLocal !== detectedArm) {
-          setDetectedArm(detectedLegLocal); // Using same state variable for simplicity
-          console.log(`Leg detection updated: now tracking ${detectedLegLocal} leg`);
-        }
-
-        // Calculate primary angle
-        const angle = calculateAngle(point1, vertex, point2);
-        setArmAngle(Math.round(angle)); // Using same state variable for display
-
-        analyzeExerciseForm(angle, landmarks, exercise, detectedLegLocal);
-      }
-    };
-  
     const analyzeArmExercise = (landmarks: any[]) => {
       const exercise = currentExercise || defaultExercise;
-      // console.log('Using exercise for analysis:', exercise.exerciseName);
-      // console.log(exerciseStarted)
       
       // Auto-detect which arm is more active
       const detectedArmLocal = detectActiveArm(landmarks);
@@ -451,11 +407,8 @@ export default function PhysiotherapyCoach() {
       // Only switch if there's a significant difference (30% threshold)
       const threshold = 0.3;
       if (rightScore > leftScore * (1 + threshold)) {
-        
-        // console.log(`Switching to right arm (Left: ${leftScore.toFixed(2)}, Right: ${rightScore.toFixed(2)})`);
         return 'right';
       } else if (leftScore > rightScore * (1 + threshold)) {
-        // console.log(`Switching to left arm (Left: ${leftScore.toFixed(2)}, Right: ${rightScore.toFixed(2)})`);
         return 'left';
       }
       
@@ -463,61 +416,7 @@ export default function PhysiotherapyCoach() {
       return detectedArm;
     };
 
-    const detectActiveLeg = (landmarks: any[]): 'left' | 'right' => {
-      const leftHip = landmarks[23];
-      const leftKnee = landmarks[25];
-      const leftAnkle = landmarks[27];
-      const rightHip = landmarks[24];
-      const rightKnee = landmarks[26];
-      const rightAnkle = landmarks[28];
-      
-      if (!leftHip || !leftKnee || !leftAnkle || !rightHip || !rightKnee || !rightAnkle) {
-        return detectedArm as 'left' | 'right'; // Keep current if can't detect all points
-      }
-      
-      // Calculate leg angles for both legs
-      const leftHipAngle = calculateAngle(landmarks[11], leftHip, leftKnee); // Shoulder-Hip-Knee
-      const rightHipAngle = calculateAngle(landmarks[12], rightHip, rightKnee); // Shoulder-Hip-Knee
-      
-      // Calculate how elevated each leg is (higher ankle = more active)
-      const leftElevation = leftHip.y - leftAnkle.y; // Higher ankle = more negative
-      const rightElevation = rightHip.y - rightAnkle.y;
-      
-      // Calculate leg extension (straighter leg when exercising)
-      const leftExtension = Math.abs(leftKnee.x - leftHip.x) + Math.abs(leftAnkle.x - leftKnee.x);
-      const rightExtension = Math.abs(rightKnee.x - rightHip.x) + Math.abs(rightAnkle.x - rightKnee.x);
-      
-      // Combined score: elevation + extension + angle deviation from rest position
-      const leftScore = leftElevation * 2 + leftExtension + Math.abs(leftHipAngle - 180);
-      const rightScore = rightElevation * 2 + rightExtension + Math.abs(rightHipAngle - 180);
-      
-      // Only switch if there's a significant difference (30% threshold)
-      const threshold = 0.3;
-      if (rightScore > leftScore * (1 + threshold)) {
-        return 'right';
-      } else if (leftScore > rightScore * (1 + threshold)) {
-        return 'left';
-      }
-      
-      // Not enough difference, keep current
-      return detectedArm as 'left' | 'right';
-    };
-    
-    // Calculate arm movement score based on joint positions - simplified
-    const calculateArmMovement = (shoulder: any, elbow: any, wrist: any): number => {
-      if (!shoulder || !elbow || !wrist) return 0;
-      
-      // Simple elevation score - higher wrist position indicates more movement
-      const elevationScore = Math.max(0, shoulder.y - wrist.y) * 3;
-      
-      // Arm extension score - how far the arm is extended
-      const extensionScore = Math.abs(wrist.x - shoulder.x) * 2;
-      
-      return elevationScore + extensionScore;
-    };
-
     const analyzeExerciseForm = (angle: number, landmarks: any[], exercise: ExerciseData, detectedArm: 'left' | 'right' = 'left') => {
-
       if (!exerciseStarted) {
         setFeedback('Click "Start Exercise" to begin tracking your movements');
         setIsCorrectForm(null);
@@ -537,26 +436,46 @@ export default function PhysiotherapyCoach() {
                                exercise.exerciseName.toLowerCase().includes('flexion') ||
                                exercise.exerciseName.toLowerCase().includes('raise');
       
-      const iseCurlingExercise = exercise.exerciseName.toLowerCase().includes('curl') ||
+      const isCurlingExercise = exercise.exerciseName.toLowerCase().includes('curl') ||
                                 exercise.exerciseName.toLowerCase().includes('bicep');
       
       // Dynamic action verbs based on exercise type
-      const actionVerb = iseCurlingExercise ? 'curl' : 'lift';
-      const actionVerbGerund = iseCurlingExercise ? 'curling' : 'lifting';
-      const bodyPart = iseCurlingExercise ? 'forearm' : 'arm';
+      const actionVerb = isCurlingExercise ? 'curl' : 'lift';
+      const actionVerbGerund = isCurlingExercise ? 'curling' : 'lifting';
+      const bodyPart = isCurlingExercise ? 'forearm' : 'arm';
       
-      // Dynamic threshold calculation based on exercise characteristics
-      const activeThreshold = isLiftingExercise ? liftingMin + 30 : liftingMin - 30;
+      // Rep counting logic - check if optimal peak is reached
+      const currentTime = Date.now();
+      const isInOptimalPeak = (isLiftingExercise && angle >= optimalPeak[0] && angle <= optimalPeak[1]) ||
+                             (isCurlingExercise && angle >= optimalPeak[0] && angle <= optimalPeak[1]);
+      
+      // Count rep when reaching optimal peak for the first time in this movement cycle
+      if (isInOptimalPeak && !hasReachedPeakRef.current && currentTime - lastRepTimeRef.current > 1000) {
+        hasReachedPeakRef.current = true;
+        lastRepTimeRef.current = currentTime;
+        repCounterRef.current += 1;
+        setRepCount(repCounterRef.current);
+        console.log(`Rep counted! Total: ${repCounterRef.current}`);
+      }
+      
+      // Reset peak flag when returning to starting position
+      const isInStartingPosition = (isLiftingExercise && angle <= startingPosition[1]) ||
+                                  (isCurlingExercise && angle >= startingPosition[0]);
+      
+      if (isInStartingPosition && hasReachedPeakRef.current) {
+        hasReachedPeakRef.current = false;
+      }
 
-      if ((isLiftingExercise && angle >= optimalPeak[0]) || (iseCurlingExercise && angle <= optimalPeak[1])) {
-        feedbackText = '✅ Excellent! Full range of motion achieved';
+      // Provide feedback based on current angle
+      if (isInOptimalPeak) {
+        feedbackText = `✅ Excellent! Rep ${repCounterRef.current} completed - Full range achieved`;
         formCorrect = true;
         currentState = actionVerbGerund;
-      } else if ((isLiftingExercise && angle > liftingMin) || (iseCurlingExercise && angle < liftingMin)) {
+      } else if ((isLiftingExercise && angle > liftingMin) || (isCurlingExercise && angle < liftingMin)) {
         feedbackText = `📈 Keep going! ${isLiftingExercise ? 'Raise' : 'Curl'} your ${bodyPart} ${isLiftingExercise ? 'higher' : 'more'}`;
         formCorrect = true;
         currentState = actionVerbGerund;
-      } else if ((isLiftingExercise && angle <= restMax) || (iseCurlingExercise && angle >= restMax)) {
+      } else if (isInStartingPosition) {
         feedbackText = `🏁 Ready position. Begin ${exercise.exerciseName.toLowerCase()}`;
         formCorrect = true;
         currentState = 'ready';
@@ -674,8 +593,9 @@ export default function PhysiotherapyCoach() {
                 <button
                   onClick={() => {
                     setCurrentExercise(null);
-                    // setRepCount(0);
-                    // repCounterRef.current = 0;
+                    setRepCount(0);
+                    repCounterRef.current = 0;
+                    hasReachedPeakRef.current = false;
                     lastStateRef.current = 'ready';
                     setExerciseStarted(false);
                     setFeedback('Position yourself in front of the camera');
@@ -686,13 +606,7 @@ export default function PhysiotherapyCoach() {
                 </button>
               )}
               <button
-                onClick={() => {
-                  setExerciseStarted(!exerciseStarted);
-                  // setRepCount(0);
-                  // repCounterRef.current = 0;
-                  lastStateRef.current = 'ready';
-                  setFeedback(exerciseStarted ? 'Exercise stopped' : 'Exercise started! Begin your movements');
-                }}
+                onClick={handleStartExercise}
                 className={`px-6 py-2 rounded-lg transition-colors ${
                   exerciseStarted 
                     ? 'bg-red-600 text-white hover:bg-red-700' 
@@ -725,6 +639,14 @@ export default function PhysiotherapyCoach() {
                 <div className="absolute top-4 left-4 bg-black bg-opacity-70 text-white px-3 py-1 rounded">
                   {currentExercise ? currentExercise.angleCalculations.primaryAngle.name : 'Arm Angle'}: {armAngle}°
                 </div>
+                
+                {/* Rep counter overlay */}
+                <div className="absolute top-4 right-4 bg-blue-600 bg-opacity-90 text-white px-4 py-2 rounded">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold">{repCount}</div>
+                    <div className="text-xs">REPS</div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -753,10 +675,10 @@ export default function PhysiotherapyCoach() {
                 Exercise Progress
               </h3>
               <div className="space-y-3">
-                {/* <div className="flex justify-between items-center">
+                <div className="flex justify-between items-center">
                   <span className="text-gray-600">Repetitions:</span>
                   <span className="text-2xl font-bold text-blue-600">{repCount}</span>
-                </div> */}
+                </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600">Current Phase:</span>
                   <span className={`px-2 py-1 rounded text-sm font-medium ${
@@ -766,6 +688,12 @@ export default function PhysiotherapyCoach() {
                     'bg-blue-100 text-blue-800'
                   }`}>
                     {exerciseState.charAt(0).toUpperCase() + exerciseState.slice(1)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Active Arm:</span>
+                  <span className="text-sm font-medium text-gray-800 capitalize">
+                    {detectedArm}
                   </span>
                 </div>
               </div>
@@ -825,7 +753,7 @@ export default function PhysiotherapyCoach() {
           <div className="text-center text-sm text-gray-600">
             <p className="mb-2">
               <strong>Pro Tips:</strong> Keep your core engaged, avoid shrugging your shoulders, 
-              and maintain a slow, controlled movement throughout the exercise.
+              and maintain a slow, controlled movement throughout the exercise. Reach the optimal peak angle to count a rep!
             </p>
             <p className="text-xs text-gray-500">
               Note: This is for demonstration purposes only. Consult a licensed physiotherapist for proper exercise guidance.
