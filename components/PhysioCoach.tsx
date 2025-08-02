@@ -330,6 +330,52 @@ export default function PhysiotherapyCoach() {
       });
     };
 
+    const analyzeLegExercise = (landmarks: any[]) => {
+      const exercise = currentExercise || defaultExercise;
+      
+      if (!exerciseStarted) {
+        setFeedback('Click "Start Exercise" to begin tracking your movements');
+        setIsCorrectForm(null);
+        return;
+      }
+      
+      // Auto-detect which leg is more active
+      const detectedLegLocal = detectActiveLeg(landmarks);
+      
+      // Get landmarks based on exercise configuration and detected leg
+      const primaryAngle = exercise.angleCalculations.primaryAngle;
+      let adjustedPoints = [...primaryAngle.points];
+      
+      // Adjust keypoints for right leg if detected
+      if (detectedLegLocal === 'right') {
+        adjustedPoints = adjustedPoints.map(point => {
+          if (point === 23) return 24; // Left hip -> Right hip
+          if (point === 25) return 26; // Left knee -> Right knee  
+          if (point === 27) return 28; // Left ankle -> Right ankle
+          if (point === 11) return 12; // Left shoulder -> Right shoulder (for hip-shoulder-knee angles)
+          return point;
+        });
+      }
+      
+      const point1 = landmarks[adjustedPoints[0]];
+      const vertex = landmarks[adjustedPoints[1]];
+      const point2 = landmarks[adjustedPoints[2]];
+
+      if (point1 && vertex && point2) {
+        // Update detected leg state if it changed
+        if (detectedLegLocal !== detectedArm) {
+          setDetectedArm(detectedLegLocal); // Using same state variable for simplicity
+          console.log(`Leg detection updated: now tracking ${detectedLegLocal} leg`);
+        }
+
+        // Calculate primary angle
+        const angle = calculateAngle(point1, vertex, point2);
+        setArmAngle(Math.round(angle)); // Using same state variable for display
+
+        analyzeExerciseForm(angle, landmarks, exercise, detectedLegLocal);
+      }
+    };
+  
     const analyzeArmExercise = (landmarks: any[]) => {
       const exercise = currentExercise || defaultExercise;
       // console.log('Using exercise for analysis:', exercise.exerciseName);
@@ -415,6 +461,46 @@ export default function PhysiotherapyCoach() {
       
       // Not enough difference, keep current
       return detectedArm;
+    };
+
+    const detectActiveLeg = (landmarks: any[]): 'left' | 'right' => {
+      const leftHip = landmarks[23];
+      const leftKnee = landmarks[25];
+      const leftAnkle = landmarks[27];
+      const rightHip = landmarks[24];
+      const rightKnee = landmarks[26];
+      const rightAnkle = landmarks[28];
+      
+      if (!leftHip || !leftKnee || !leftAnkle || !rightHip || !rightKnee || !rightAnkle) {
+        return detectedArm as 'left' | 'right'; // Keep current if can't detect all points
+      }
+      
+      // Calculate leg angles for both legs
+      const leftHipAngle = calculateAngle(landmarks[11], leftHip, leftKnee); // Shoulder-Hip-Knee
+      const rightHipAngle = calculateAngle(landmarks[12], rightHip, rightKnee); // Shoulder-Hip-Knee
+      
+      // Calculate how elevated each leg is (higher ankle = more active)
+      const leftElevation = leftHip.y - leftAnkle.y; // Higher ankle = more negative
+      const rightElevation = rightHip.y - rightAnkle.y;
+      
+      // Calculate leg extension (straighter leg when exercising)
+      const leftExtension = Math.abs(leftKnee.x - leftHip.x) + Math.abs(leftAnkle.x - leftKnee.x);
+      const rightExtension = Math.abs(rightKnee.x - rightHip.x) + Math.abs(rightAnkle.x - rightKnee.x);
+      
+      // Combined score: elevation + extension + angle deviation from rest position
+      const leftScore = leftElevation * 2 + leftExtension + Math.abs(leftHipAngle - 180);
+      const rightScore = rightElevation * 2 + rightExtension + Math.abs(rightHipAngle - 180);
+      
+      // Only switch if there's a significant difference (30% threshold)
+      const threshold = 0.3;
+      if (rightScore > leftScore * (1 + threshold)) {
+        return 'right';
+      } else if (leftScore > rightScore * (1 + threshold)) {
+        return 'left';
+      }
+      
+      // Not enough difference, keep current
+      return detectedArm as 'left' | 'right';
     };
     
     // Calculate arm movement score based on joint positions - simplified
