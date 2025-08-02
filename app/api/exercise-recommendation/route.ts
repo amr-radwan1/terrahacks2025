@@ -45,7 +45,7 @@ function validateAndCorrectExercise(exerciseData: any): ExerciseResponse {
     template = exerciseTemplates.shoulderFlexion;
   } else if (exerciseName.includes('pendulum') || exerciseName.includes('swing')) {
     template = exerciseTemplates.pendulum;
-  } else if (exerciseName.includes('curl') || exerciseName.includes('bicep')) {
+  } else if (exerciseName.includes('curl') || exerciseName.includes('bicep') || exerciseName.includes('biceps')) {
     template = exerciseTemplates.armCurl;
   } else if (exerciseName.includes('leg') && exerciseName.includes('raise')) {
     template = exerciseTemplates.legRaise;

@@ -68,6 +68,7 @@ export default function PhysiotherapyCoach() {
 
   // Handler for exercise generation
   const handleExerciseGenerated = (exerciseData: ExerciseData) => {
+    console.log('New exercise generated:', exerciseData);
     setCurrentExercise(exerciseData);
     setIsExerciseActive(true);
     setRepCount(0); // Reset rep count for new exercise
@@ -315,6 +316,7 @@ export default function PhysiotherapyCoach() {
 
     const analyzeShoulderAbduction = (landmarks: any[]) => {
       const exercise = currentExercise || defaultExercise;
+      console.log('Using exercise for analysis:', exercise.exerciseName);
       
       // Get landmarks based on exercise configuration
       const primaryAngle = exercise.angleCalculations.primaryAngle;
@@ -426,7 +428,7 @@ export default function PhysiotherapyCoach() {
         pose.close();
       }
     };
-  }, [isMediaPipeLoaded]);
+  }, [isMediaPipeLoaded, currentExercise]);
 
   return (
     <>
