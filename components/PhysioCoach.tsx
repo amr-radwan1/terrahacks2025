@@ -935,12 +935,36 @@ export default function PhysiotherapyCoach() {
                   </div>
                 </div>
 
+                {/* Target Ranges Overlay */}
+                <div className="absolute bottom-4 right-4 bg-black bg-opacity-80 text-white px-3 py-2 rounded text-xs">
+                  <div className="font-semibold mb-1">Target Ranges</div>
+                  {(() => {
+                    const ranges = currentExercise?.targetRanges || defaultExercise.targetRanges;
+                    return (
+                      <div className="space-y-1">
+                        <div className="flex justify-between gap-3">
+                          <span className="text-blue-300">Start:</span>
+                          <span>{ranges.startingPosition[0]}-{ranges.startingPosition[1]}°</span>
+                        </div>
+                        <div className="flex justify-between gap-3">
+                          <span className="text-green-300">Target:</span>
+                          <span>{ranges.targetRange[0]}-{ranges.targetRange[1]}°</span>
+                        </div>
+                        <div className="flex justify-between gap-3">
+                          <span className="text-purple-300">Peak:</span>
+                          <span>{ranges.optimalPeak[0]}-{ranges.optimalPeak[1]}°</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
                 {/* Active limb indicator */}
-                <div className="absolute bottom-4 left-4 bg-green-600 bg-opacity-90 text-white px-3 py-1 rounded">
+                {/* <div className="absolute bottom-4 left-4 bg-green-600 bg-opacity-90 text-white px-3 py-1 rounded">
                   <div className="text-sm font-medium">
                     Tracking: {detectedArm.charAt(0).toUpperCase() + detectedArm.slice(1)} {getExerciseBodyPart(currentExercise || defaultExercise) === 'legs' ? 'Leg' : 'Arm'}
                   </div>
-                </div>
+                </div> */}
               </div>
             </div>
 
@@ -976,10 +1000,10 @@ export default function PhysiotherapyCoach() {
                 Exercise Progress
               </h3>
               <div className="space-y-3">
-                <div className="flex justify-between items-center">
+                {/* <div className="flex justify-between items-center">
                   <span className="text-gray-600">Repetitions:</span>
                   <span className="text-2xl font-bold text-blue-600">{repCount}</span>
-                </div>
+                </div> */}
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600">Current Phase:</span>
                   <span className={`px-2 py-1 rounded text-sm font-medium ${
@@ -991,7 +1015,7 @@ export default function PhysiotherapyCoach() {
                     {exerciseState.charAt(0).toUpperCase() + exerciseState.slice(1)}
                   </span>
                 </div>
-                <div className="flex justify-between items-center">
+                {/* <div className="flex justify-between items-center">
                   <span className="text-gray-600">Active Limb:</span>
                   <span className="text-sm font-medium text-gray-800 capitalize">
                     {(() => {
@@ -1000,7 +1024,7 @@ export default function PhysiotherapyCoach() {
                       return `${detectedArm} ${bodyPart === 'legs' ? 'leg' : 'arm'}`;
                     })()}
                   </span>
-                </div>
+                </div> */}
               </div>
             </div>
 
@@ -1022,7 +1046,7 @@ export default function PhysiotherapyCoach() {
               </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow-lg p-6">
+            {/* <div className="bg-white rounded-lg shadow-lg p-6">
               <h3 className="text-lg font-semibold mb-3 text-gray-800">
                 Target Ranges
               </h3>
@@ -1032,29 +1056,29 @@ export default function PhysiotherapyCoach() {
                   return (
                     <>
                       <div className="flex justify-between">
-                        <span>Starting Position:</span>
+                        <span className="text-black">Starting Position:</span>
                         <span className="text-blue-600">{ranges.startingPosition[0]}-{ranges.startingPosition[1]}°</span>
                       </div>
                       <div className="flex justify-between">
-                        <span>Target Range:</span>
+                        <span className="text-black">Target Range:</span>
                         <span className="text-green-600">{ranges.targetRange[0]}-{ranges.targetRange[1]}°</span>
                       </div>
                       <div className="flex justify-between">
-                        <span>Optimal Peak:</span>
+                        <span className="text-black">Optimal Peak:</span>
                         <span className="text-purple-600">{ranges.optimalPeak[0]}-{ranges.optimalPeak[1]}°</span>
                       </div>
                     </>
                   );
                 })()}
               </div>
-            </div>
+            </div> */}
           </div>
         </div>
 
         <div className="mt-6 bg-white rounded-lg shadow-lg p-4">
           <div className="text-center text-sm text-gray-600">
             <p className="mb-2">
-              <strong>Pro Tips:</strong> Keep your core engaged, avoid shrugging your shoulders, 
+              <strong>Tips:</strong> Keep your core engaged, avoid shrugging your shoulders, 
               and maintain a slow, controlled movement throughout the exercise. Reach the optimal peak angle to count a rep!
             </p>
             <p className="text-xs text-gray-500">
