@@ -122,131 +122,132 @@ export async function POST(request: NextRequest) {
     const userProfile: UserProfile = await request.json();
 
     const prompt = `
-You are an expert physiotherapist AI. Based on the user profile provided, recommend a SIMPLE and STRAIGHTFORWARD physiotherapy exercise with BRIEF instructions.
+  You are an expert physiotherapist AI. Based on the user profile provided, recommend a SIMPLE and STRAIGHTFORWARD physiotherapy exercise with BRIEF instructions.
 
-IMPORTANT: Keep instructions simple, clear, and not complex. Use 3-5 short steps maximum.
+  IMPORTANT: Keep instructions simple, clear, and not complex. Use 3-5 short steps maximum.
 
-Don't suggest anything that requires depth such as arm swings forward and backward, because only x and y values are available. Something like
-bicep curl is fine.
+  Don't suggest anything that requires depth such as arm swings forward and backward, because only x and y values are available. Something like
+  bicep curl is fine.
+  If asked for a leg exercise, suggest seated knee extension.
 
-CRITICAL - ANGLE CALCULATION SYSTEM:
-Our pose analysis system calculates angles using 3 points: Point1 → Vertex → Point2
-The angle is measured at the VERTEX (middle point) between the two lines formed.
+  CRITICAL - ANGLE CALCULATION SYSTEM:
+  Our pose analysis system calculates angles using 3 points: Point1 → Vertex → Point2
+  The angle is measured at the VERTEX (middle point) between the two lines formed.
 
-HOW ANGLES ARE CALCULATED:
-- We use the formula: angle = arctan2(Point2.y - Vertex.y, Point2.x - Vertex.x) - arctan2(Point1.y - Vertex.y, Point1.x - Vertex.x)
-- Result is converted to degrees (0-180°)
-- For arm exercises, we automatically detect which arm is being used (left/right)
+  HOW ANGLES ARE CALCULATED:
+  - We use the formula: angle = arctan2(Point2.y - Vertex.y, Point2.x - Vertex.x) - arctan2(Point1.y - Vertex.y, Point1.x - Vertex.x)
+  - Result is converted to degrees (0-180°)
+  - For arm exercises, we automatically detect which arm is being used (left/right)
 
-EXERCISE TYPE → ANGLE POINTS MAPPING:
-1. ARM LIFTING (shoulder abduction/flexion): 
-   - Points: [hip, shoulder, elbow] → [23, 11, 13] (left) or [24, 12, 14] (right)
-   - Measures: Hip-to-shoulder-to-elbow angle
-   - 0° = arm down, 90° = arm horizontal, 180° = arm up
+  EXERCISE TYPE → ANGLE POINTS MAPPING:
+  1. ARM LIFTING (shoulder abduction/flexion): 
+     - Points: [hip, shoulder, elbow] → [23, 11, 13] (left) or [24, 12, 14] (right)
+     - Measures: Hip-to-shoulder-to-elbow angle
+     - 0° = arm down, 90° = arm horizontal, 180° = arm up
 
-2. ARM SWINGING (pendulum exercises):
-   - Points: [shoulder, elbow, wrist] → [11, 13, 15] (left) or [12, 14, 16] (right)
-   - Measures: Shoulder-to-elbow-to-wrist angle
-   - 180° = straight arm, 90° = bent arm
+  2. ARM CURL (biceps curl):
+     - Points: [shoulder, elbow, wrist] → [11, 13, 15] (left) or [12, 14, 16] (right)
+     - Measures: Shoulder-to-elbow-to-wrist angle
+     - 180° = straight arm, 30-60° = fully curled
 
-3. LEG EXERCISES:
-   - Points: [hip, knee, ankle] → [23, 25, 27] (left) or [24, 26, 28] (right)
-   - Measures: Hip-to-knee-to-ankle angle
+  3. LEG EXERCISES:
+     - Points: [hip, knee, ankle] → [23, 25, 27] (left) or [24, 26, 28] (right)
+     - Measures: Hip-to-knee-to-ankle angle
 
-ANGLE RANGES LOGIC:
-- startingPosition: The angle range when at rest/neutral position
-- targetRange: The full range of motion during exercise
-- optimalPeak: The ideal angle range for best exercise execution
-- repThresholds: Motion phase detection thresholds
-  * liftingMin: Minimum angle to detect lifting phase
-  * loweringMax: Maximum angle to detect lowering phase  
-  * restMax: Maximum angle considered at rest
+  ANGLE RANGES LOGIC:
+  - startingPosition: The angle range when at rest/neutral position
+  - targetRange: The full range of motion during exercise
+  - optimalPeak: The ideal angle range for best exercise execution
+  - repThresholds: Motion phase detection thresholds
+    * liftingMin: Minimum angle to detect lifting phase
+    * loweringMax: Maximum angle to detect lowering phase  
+    * restMax: Maximum angle considered at rest
 
-User Profile:
-- Height: ${userProfile.height}cm
-- Weight: ${userProfile.weight}kg  
-- Age: ${userProfile.age}
-- Gender: ${userProfile.gender}
-- Pain Location: ${userProfile.painLocation}
-- Pain Level (1-10): ${userProfile.painLevel}
-- Fitness Level: ${userProfile.fitnessLevel}
-- Medical History: ${userProfile.medicalHistory || 'None provided'}
-- Current Limitations: ${userProfile.currentLimitations || 'None provided'}
+  User Profile:
+  - Height: ${userProfile.height}cm
+  - Weight: ${userProfile.weight}kg  
+  - Age: ${userProfile.age}
+  - Gender: ${userProfile.gender}
+  - Pain Location: ${userProfile.painLocation}
+  - Pain Level (1-10): ${userProfile.painLevel}
+  - Fitness Level: ${userProfile.fitnessLevel}
+  - Medical History: ${userProfile.medicalHistory || 'None provided'}
+  - Current Limitations: ${userProfile.currentLimitations || 'None provided'}
 
-Please provide a response in the following EXACT JSON format (respond ONLY with valid JSON, no markdown formatting, no additional text or explanations):
+  Please provide a response in the following EXACT JSON format (respond ONLY with valid JSON, no markdown formatting, no additional text or explanations):
 
-{
-  "exerciseName": "Simple Exercise Name",
-  "description": "Brief one-sentence description of why this exercise helps",
-  "steps": [
+  {
+    "exerciseName": "Simple Exercise Name",
+    "description": "Brief one-sentence description of why this exercise helps",
+    "steps": [
     "Step 1: Short, clear instruction",
     "Step 2: Short, clear instruction", 
     "Step 3: Short, clear instruction"
-  ],
-  "targetKeypoints": [11, 13, 15, 23],
-  "angleCalculations": {
+    ],
+    "targetKeypoints": [11, 13, 15, 23],
+    "angleCalculations": {
     "primaryAngle": {
       "points": [23, 11, 13],
       "name": "Primary Movement Angle"
     }
-  },
-  "targetRanges": {
+    },
+    "targetRanges": {
     "startingPosition": [0, 45],
     "targetRange": [90, 180],
     "optimalPeak": [160, 180]
-  },
-  "formChecks": [
+    },
+    "formChecks": [
     {
       "condition": "simple form error description",
       "errorMessage": "Brief correction message",
       "keypoints": [11, 15]
     }
-  ],
-  "repThresholds": {
+    ],
+    "repThresholds": {
     "liftingMin": 90,
     "loweringMax": 60,
     "restMax": 30
+    }
   }
-}
 
-EXAMPLES OF CORRECT ANGLE CALCULATIONS:
+  EXAMPLES OF CORRECT ANGLE CALCULATIONS:
 
-1. SHOULDER ABDUCTION (lifting arm to the side):
-   - points=[23, 11, 13] (Hip → Left Shoulder → Left Elbow)
-   - startingPosition=[0,45] (arm down/resting)
-   - targetRange=[90,180] (arm horizontal to up)
-   - optimalPeak=[160,180] (nearly straight up)
-   - repThresholds: liftingMin=90, loweringMax=60, restMax=30
+  1. SHOULDER ABDUCTION (lifting arm to the side):
+     - points=[23, 11, 13] (Hip → Left Shoulder → Left Elbow)
+     - startingPosition=[0,45] (arm down/resting)
+     - targetRange=[90,180] (arm horizontal to up)
+     - optimalPeak=[160,180] (nearly straight up)
+     - repThresholds: liftingMin=90, loweringMax=60, restMax=30
 
-2. PENDULUM SWING (gentle arm swing):
-   - points=[11, 13, 15] (Shoulder → Elbow → Wrist)  
-   - startingPosition=[160,180] (straight hanging arm)
-   - targetRange=[90,160] (swinging range)
-   - optimalPeak=[90,120] (max swing angle)
-   - repThresholds: liftingMin=140, loweringMax=160, restMax=175
+  2. BICEP CURL (elbow flexion):
+     - points=[11, 13, 15] (Shoulder → Elbow → Wrist)  
+     - startingPosition=[160,180] (arm straight down)
+     - targetRange=[30,90] (curling up)
+     - optimalPeak=[30,60] (fully curled)
+     - repThresholds: liftingMin=120, loweringMax=150, restMax=170
 
-3. FORWARD ARM RAISE (shoulder flexion):
-   - points=[23, 11, 13] (Hip → Shoulder → Elbow)
-   - startingPosition=[0,30] (arm at side)
-   - targetRange=[90,180] (horizontal to up)
-   - optimalPeak=[160,180] (nearly overhead)
-   - repThresholds: liftingMin=90, loweringMax=60, rest=30
+  3. FORWARD ARM RAISE (shoulder flexion):
+     - points=[23, 11, 13] (Hip → Shoulder → Elbow)
+     - startingPosition=[0,30] (arm at side)
+     - targetRange=[90,180] (horizontal to up)
+     - optimalPeak=[160,180] (nearly overhead)
+     - repThresholds: liftingMin=90, loweringMax=60, rest=30
 
-DETECTION SYSTEM: Our system automatically detects which arm (left/right) is being used based on movement and adjusts the landmark indices accordingly.
+  DETECTION SYSTEM: Our system automatically detects which arm (left/right) is being used based on movement and adjusts the landmark indices accordingly.
 
-MediaPipe Pose Landmark Reference:
-0-10: Face landmarks
-11: Left shoulder, 12: Right shoulder
-13: Left elbow, 14: Right elbow  
-15: Left wrist, 16: Right wrist
-17-22: Hand landmarks
-23: Left hip, 24: Right hip
-25: Left knee, 26: Right knee
-27: Left ankle, 28: Right ankle
-29-32: Foot landmarks
+  MediaPipe Pose Landmark Reference:
+  0-10: Face landmarks
+  11: Left shoulder, 12: Right shoulder
+  13: Left elbow, 14: Right elbow  
+  15: Left wrist, 16: Right wrist
+  17-22: Hand landmarks
+  23: Left hip, 24: Right hip
+  25: Left knee, 26: Right knee
+  27: Left ankle, 28: Right ankle
+  29-32: Foot landmarks
 
-Consider the user's pain location and limitations when selecting keypoints and angle calculations. Focus on therapeutic exercises that address their specific condition while being safe for their fitness level.
-`;
+  Consider the user's pain location and limitations when selecting keypoints and angle calculations. Focus on therapeutic exercises that address their specific condition while being safe for their fitness level.
+  `;
 
     const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
     const result = await model.generateContent(prompt);
